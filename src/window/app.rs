@@ -9,23 +9,22 @@ use winit::event_loop::{ActiveEventLoop, ControlFlow};
 use winit::platform::windows::WindowAttributesExtWindows;
 use winit::window::{Window, WindowId, WindowLevel};
 
-use windows::Win32::Foundation::POINT;
-use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
-
 use crate::core::config::{
     BASE_HEIGHT, BASE_WIDTH, EXPANDED_HEIGHT, EXPANDED_WIDTH, PADDING, TOP_OFFSET, WINDOW_TITLE,
 };
 use crate::core::render::draw_island;
+use crate::utils::mouse::{get_global_cursor_pos, is_point_in_rect};
+use crate::utils::physics::Spring;
 
-#[derive(Default)]
 pub struct App {
     window: Option<Arc<Window>>,
     surface: Option<Surface<Arc<Window>, Arc<Window>>>,
 
     expanded: bool,
-    current_w: f32,
-    current_h: f32,
-    current_r: f32,
+    
+    spring_w: Spring,
+    spring_h: Spring,
+    spring_r: Spring,
 
     os_w: u32,
     os_h: u32,
@@ -34,15 +33,28 @@ pub struct App {
     win_y: i32,
 }
 
+impl Default for App {
+    fn default() -> Self {
+        Self {
+            window: None,
+            surface: None,
+            expanded: false,
+            spring_w: Spring::new(BASE_WIDTH),
+            spring_h: Spring::new(BASE_HEIGHT),
+            spring_r: Spring::new(13.5),
+            os_w: 0,
+            os_h: 0,
+            win_x: 0,
+            win_y: 0,
+        }
+    }
+}
+
 impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         event_loop.set_control_flow(ControlFlow::Poll);
 
         if self.window.is_none() {
-            self.current_w = BASE_WIDTH;
-            self.current_h = BASE_HEIGHT;
-            self.current_r = 13.5;
-
             self.os_w = (EXPANDED_WIDTH + PADDING) as u32;
             self.os_h = (EXPANDED_HEIGHT + PADDING) as u32;
 
@@ -91,22 +103,33 @@ impl ApplicationHandler for App {
                 button: MouseButton::Left,
                 ..
             } => {
-                let mut point = POINT::default();
-                unsafe { let _ = GetCursorPos(&mut point); }
+                let point = get_global_cursor_pos();
+                let rel_x = point.x - self.win_x;
                 let rel_y = point.y - self.win_y;
+                
                 let island_y = PADDING as f64 / 2.0;
+                let offset_x = (self.os_w as f64 - self.spring_w.value as f64) / 2.0;
 
-                if self.expanded {
-                    if (rel_y as f64) >= island_y && (rel_y as f64) < island_y + 40.0 {
-                        self.expanded = false;
+                if is_point_in_rect(rel_x as f64, rel_y as f64, offset_x, island_y, self.spring_w.value as f64, self.spring_h.value as f64)
+                {
+                    if self.expanded {
+                        if (rel_y as f64) < island_y + 40.0 {
+                            self.expanded = false;
+                            self.spring_w.velocity *= 0.2;
+                            self.spring_h.velocity *= 0.2;
+                            self.spring_r.velocity *= 0.2;
+                        }
+                    } else {
+                        self.expanded = true;
+                        self.spring_w.velocity *= 0.2;
+                        self.spring_h.velocity *= 0.2;
+                        self.spring_r.velocity *= 0.2;
                     }
-                } else {
-                    self.expanded = true;
                 }
             }
             WindowEvent::RedrawRequested => {
                 if let Some(surface) = self.surface.as_mut() {
-                    draw_island(surface, self.current_w, self.current_h, self.current_r, self.os_w, self.os_h);
+                    draw_island(surface, self.spring_w.value, self.spring_h.value, self.spring_r.value, self.os_w, self.os_h);
                 }
             }
             _ => (),
@@ -115,19 +138,15 @@ impl ApplicationHandler for App {
 
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
         if let Some(window) = &self.window {
-            let mut point = POINT::default();
-            unsafe { let _ = GetCursorPos(&mut point); }
+            let point = get_global_cursor_pos();
             
             let rel_x = point.x - self.win_x;
             let rel_y = point.y - self.win_y;
             
             let island_y = PADDING as f64 / 2.0;
-            let offset_x = (self.os_w as f64 - self.current_w as f64) / 2.0;
+            let offset_x = (self.os_w as f64 - self.spring_w.value as f64) / 2.0;
             
-            let is_hovering = rel_x as f64 >= offset_x 
-                && (rel_x as f64) <= offset_x + self.current_w as f64
-                && rel_y as f64 >= island_y 
-                && (rel_y as f64) <= island_y + self.current_h as f64;
+            let is_hovering = is_point_in_rect(rel_x as f64, rel_y as f64, offset_x, island_y, self.spring_w.value as f64, self.spring_h.value as f64);
                 
             let _ = window.set_cursor_hittest(is_hovering);
 
@@ -135,19 +154,22 @@ impl ApplicationHandler for App {
             let target_h = if self.expanded { EXPANDED_HEIGHT } else { BASE_HEIGHT };
             let target_r = if self.expanded { 32.0 } else { 13.5 };
 
-            let diff_w = target_w - self.current_w;
-            let diff_h = target_h - self.current_h;
-            let diff_r = target_r - self.current_r;
+            let total_w = (EXPANDED_WIDTH - BASE_WIDTH).abs().max(1.0);
+            let dist_w = (target_w - self.spring_w.value).abs();
+            let ratio = (dist_w / total_w).clamp(0.0, 1.0);
 
-            if diff_w.abs() > 0.5 || diff_h.abs() > 0.5 {
-                self.current_w += diff_w * 0.18;
-                self.current_h += diff_h * 0.18;
-                self.current_r += diff_r * 0.18;
-                window.request_redraw();
-            } else if self.current_w != target_w {
-                self.current_w = target_w;
-                self.current_h = target_h;
-                self.current_r = target_r;
+            let (stiffness, damping) = if self.expanded {
+                let s = 0.11 * (1.0 - ratio * 0.6).max(0.4);
+                (s, 0.70)
+            } else {
+                (0.11, 0.65)
+            };
+
+            self.spring_w.update(target_w, stiffness, damping);
+            self.spring_h.update(target_h, stiffness, damping);
+            self.spring_r.update(target_r, stiffness, damping);
+
+            if self.spring_w.velocity.abs() > 0.01 || self.spring_h.velocity.abs() > 0.01 || self.spring_r.velocity.abs() > 0.01 {
                 window.request_redraw();
             }
 

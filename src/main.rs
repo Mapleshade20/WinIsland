@@ -2,6 +2,7 @@
 
 mod core;
 mod window;
+mod utils;
 
 use winit::event_loop::EventLoop;
 use crate::window::app::App;

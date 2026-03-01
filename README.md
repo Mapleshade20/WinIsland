@@ -1,4 +1,6 @@
-<img src="resources/info-en.png" width="100%">
+<p align="center">
+  <img src="resources/info-en.png" width="600">
+</p>
 
 ## WinIsland
 

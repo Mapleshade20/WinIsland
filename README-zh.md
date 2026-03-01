@@ -1,4 +1,6 @@
-# <img src="resources/info-zh.png" height="32" vertical-align="middle"> WinIsland
+<img src="resources/info-zh.png" width="100%">
+
+# WinIsland
 
 [English](./README.md) | 简体中文
 

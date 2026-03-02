@@ -27,6 +27,17 @@ jobs:
         choco install ninja
     - name: Build Release
       run: cargo build --release --verbose
+    - name: Generate Version Info
+      run: |
+        $date = (Get-Date).ToUniversalTime().AddHours(8).ToString("yyyy-MM-dd HH:mm:ss")
+        $json = @@{ timestamp = $date } | ConvertTo-Json
+        $json | Out-File -FilePath target/release/version_info.json -Encoding utf8
+    - name: Delete Old Nightly Release
+      run: |
+        gh release delete nightly --yes --cleanup-tag
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      continue-on-error: true
     - name: Upload Nightly Release
       uses: softprops/action-gh-release@v2
       if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
@@ -35,7 +46,9 @@ jobs:
         name: Nightly Build
         draft: false
         prerelease: true
-        files: target/release/WinIsland.exe
+        files: |
+          target/release/WinIsland.exe
+          target/release/version_info.json
         make_latest: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

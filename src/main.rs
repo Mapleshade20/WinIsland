@@ -26,6 +26,9 @@ fn main() {
                 return;
             }
         }
+        let config = crate::core::persistence::load_config();
+        crate::utils::updater::check_for_updates(&config);
+        
         let event_loop = EventLoop::new().unwrap();
         let mut app = App::default();
         event_loop.run_app(&mut app).unwrap();

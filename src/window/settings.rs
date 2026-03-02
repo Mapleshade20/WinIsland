@@ -25,6 +25,7 @@ pub struct SettingsApp {
     border_switch_pos: f32,
     blur_switch_pos: f32,
     autostart_switch_pos: f32,
+    update_switch_pos: f32,
     logical_mouse_pos: (f32, f32),
     font_mgr: FontMgr,
     custom_font_typeface: Option<skia_safe::Typeface>,
@@ -38,6 +39,7 @@ impl SettingsApp {
         let initial_border = if config.adaptive_border { 1.0 } else { 0.0 };
         let initial_blur = if config.motion_blur { 1.0 } else { 0.0 };
         let initial_autostart = if config.auto_start { 1.0 } else { 0.0 };
+        let initial_update = if config.check_for_updates { 1.0 } else { 0.0 };
         let mut app = Self {
             window: None,
             surface: None,
@@ -47,10 +49,11 @@ impl SettingsApp {
             border_switch_pos: initial_border,
             blur_switch_pos: initial_blur,
             autostart_switch_pos: initial_autostart,
+            update_switch_pos: initial_update,
             logical_mouse_pos: (0.0, 0.0),
             font_mgr: FontMgr::new(),
             custom_font_typeface: None,
-            custom_font_path_cache: None,
+            custom_font_path_cache: Option::<String>::None,
             frame_count: 0,
             scroll_y: 0.0,
             target_scroll_y: 0.0,
@@ -113,7 +116,7 @@ impl SettingsApp {
             self.draw_general(canvas);
             canvas.restore();
 
-            let content_h = if self.config.auto_hide { 750.0 } else { 700.0 };
+            let content_h = if self.config.auto_hide { 800.0 } else { 750.0 };
             let view_h = SETTINGS_H - 70.0;
             if content_h > view_h {
                 let bar_h = (view_h / content_h) * view_h;
@@ -218,7 +221,14 @@ impl SettingsApp {
         canvas.draw_str("Auto Hide", (35.0, autohide_y + 21.0), &font, &paint);
         self.draw_switch(canvas, 326.0, autohide_y + 3.0, if self.config.auto_hide { 1.0 } else { 0.0 });
 
-        let delay_y = autohide_y + 50.0;
+        let update_y = autohide_y + 50.0;
+        paint.set_color(COLOR_CARD);
+        canvas.draw_round_rect(Rect::from_xywh(20.0, update_y - 5.0, SETTINGS_W - 40.0, 42.0), 10.0, 10.0, &paint);
+        paint.set_color(COLOR_TEXT_PRI);
+        canvas.draw_str("Check for Updates", (35.0, update_y + 21.0), &font, &paint);
+        self.draw_switch(canvas, 326.0, update_y + 3.0, self.update_switch_pos);
+
+        let delay_y = update_y + 50.0;
         paint.set_color(COLOR_CARD);
         canvas.draw_round_rect(Rect::from_xywh(20.0, delay_y - 5.0, SETTINGS_W - 40.0, 42.0), 10.0, 10.0, &paint);
         paint.set_color(if self.config.auto_hide { COLOR_TEXT_PRI } else { COLOR_TEXT_SEC });
@@ -232,7 +242,7 @@ impl SettingsApp {
         paint.set_color(COLOR_DANGER);
         let reset_str = "Reset to Defaults";
         let (_, rect) = font.measure_str(reset_str, None);
-        let reset_y = if self.config.auto_hide { 710.0 } else { 660.0 };
+        let reset_y = if self.config.auto_hide { 760.0 } else { 710.0 };
         canvas.draw_str(reset_str, ((SETTINGS_W - rect.width()) / 2.0, reset_y), &font, &paint);
     }
     fn draw_text_button_danger(&self, canvas: &skia_safe::Canvas, x: f32, y: f32, w: f32, h: f32, label: &str) {
@@ -360,12 +370,17 @@ impl SettingsApp {
                 self.config.auto_hide = !self.config.auto_hide;
                 changed = true;
             }
-            let delay_y = autohide_y + 50.0;
+            let update_y = autohide_y + 50.0;
+            if Self::in_rect(mx, content_my, 326.0, update_y + 3.0, 48.0, 26.0) {
+                self.config.check_for_updates = !self.config.check_for_updates;
+                changed = true;
+            }
+            let delay_y = update_y + 50.0;
             if self.config.auto_hide {
                 self.check_btn(mx, content_my, 270.0, delay_y + 2.0, |c| c.auto_hide_delay = (c.auto_hide_delay - 1.0).max(1.0), &mut changed);
                 self.check_btn(mx, content_my, 345.0, delay_y + 2.0, |c| c.auto_hide_delay = (c.auto_hide_delay + 1.0).min(60.0), &mut changed);
             }
-            let reset_y = if self.config.auto_hide { 710.0 } else { 660.0 };
+            let reset_y = if self.config.auto_hide { 760.0 } else { 710.0 };
             if mx >= cx - 100.0 && mx <= cx + 100.0 && content_my >= reset_y - 24.0 && content_my <= reset_y + 12.0 {
                 self.config = AppConfig::default();
                 self.refresh_custom_font_cache();
@@ -375,7 +390,7 @@ impl SettingsApp {
             let _ = open::that(APP_HOMEPAGE);
         }
         if changed {
-            let content_h = if self.config.auto_hide { 750.0 } else { 700.0 };
+            let content_h = if self.config.auto_hide { 800.0 } else { 750.0 };
             let max_scroll = (content_h - (SETTINGS_H - 70.0)).max(0.0);
             self.target_scroll_y = self.target_scroll_y.clamp(0.0, max_scroll);
             self.scroll_y = self.scroll_y.clamp(0.0, max_scroll);
@@ -424,7 +439,7 @@ impl ApplicationHandler for SettingsApp {
                         winit::event::MouseScrollDelta::PixelDelta(pos) => pos.y as f32,
                     };
                     self.target_scroll_y -= diff;
-                    let content_h = if self.config.auto_hide { 750.0 } else { 700.0 };
+                    let content_h = if self.config.auto_hide { 800.0 } else { 750.0 };
                     let max_scroll = (content_h - (SETTINGS_H - 70.0)).max(0.0);
                     self.target_scroll_y = self.target_scroll_y.clamp(0.0, max_scroll);
                     if let Some(win) = &self.window { win.request_redraw(); }
@@ -452,7 +467,9 @@ impl ApplicationHandler for SettingsApp {
             if (tbu - self.blur_switch_pos).abs() > 0.01 { self.blur_switch_pos += (tbu - self.blur_switch_pos) * 0.2; redraw = true; }
             let tas = if self.config.auto_start { 1.0 } else { 0.0 };
             if (tas - self.autostart_switch_pos).abs() > 0.01 { self.autostart_switch_pos += (tas - self.autostart_switch_pos) * 0.2; redraw = true; }
-            let content_h = if self.config.auto_hide { 750.0 } else { 700.0 };
+            let tcu = if self.config.check_for_updates { 1.0 } else { 0.0 };
+            if (tcu - self.update_switch_pos).abs() > 0.01 { self.update_switch_pos += (tcu - self.update_switch_pos) * 0.2; redraw = true; }
+            let content_h = if self.config.auto_hide { 800.0 } else { 750.0 };
             let max_scroll = (content_h - (SETTINGS_H - 70.0)).max(0.0);
             self.target_scroll_y = self.target_scroll_y.clamp(0.0, max_scroll);
             if (self.target_scroll_y - self.scroll_y).abs() > 0.1 {
@@ -470,4 +487,3 @@ pub fn run_settings(config: AppConfig) {
     let mut app = SettingsApp::new(config);
     el.run_app(&mut app).unwrap();
 }
-

@@ -121,7 +121,7 @@ impl MusicApp {
         canvas.draw_str(&tr("music_settings_title"), (25.0, 45.0), &font_title, &paint);
         
         paint.set_color(COLOR_CARD);
-        canvas.draw_round_rect(Rect::from_xywh(20.0, 70.0, MUSIC_W - 40.0, 100.0), 12.0, 12.0, &paint);
+        canvas.draw_round_rect(Rect::from_xywh(20.0, 70.0, MUSIC_W - 40.0, 155.0), 12.0, 12.0, &paint);
         
         let font_item = self.get_font(15.0, false);
         paint.set_color(COLOR_TEXT_PRI);
@@ -131,10 +131,17 @@ impl MusicApp {
         canvas.draw_str(&tr("show_lyrics"), (40.0, 152.0), &font_item, &paint);
         self.draw_switch(canvas, 325.0, 132.0, self.lyrics_switch_pos);
 
+        let show_lyrics = self.config.show_lyrics;
+        paint.set_color(if show_lyrics { COLOR_TEXT_PRI } else { COLOR_TEXT_SEC });
+        canvas.draw_str(&tr("lyrics_source"), (40.0, 202.0), &font_item, &paint);
+        let source = &self.config.lyrics_source.clone();
+        self.draw_source_button(canvas, 235.0, 185.0, 50.0, "163", source == "163", show_lyrics);
+        self.draw_source_button(canvas, 292.0, 185.0, 68.0, "LRCLIB", source == "lrclib", show_lyrics);
+
         let enabled = self.config.smtc_enabled;
         let text_color = if enabled { COLOR_TEXT_PRI } else { COLOR_TEXT_SEC };
         let sec_color = if enabled { COLOR_TEXT_SEC } else { COLOR_DISABLED };
-        let media_apps_y = 195.0;
+        let media_apps_y = 250.0;
         paint.set_color(sec_color);
         let font_sec = self.get_font(12.0, true);
         canvas.draw_str(&tr("media_apps"), (30.0, media_apps_y + 15.0), &font_sec, &paint);
@@ -197,6 +204,17 @@ impl MusicApp {
         let (_, rect) = font.measure_str(label, None);
         canvas.draw_str(label, (x + (w - rect.width()) / 2.0, y + 16.0), &font, &paint);
     }
+    fn draw_source_button(&self, canvas: &skia_safe::Canvas, x: f32, y: f32, w: f32, label: &str, active: bool, enabled: bool) {
+        let h = 22.0;
+        let mut paint = Paint::default();
+        paint.set_anti_alias(true);
+        paint.set_color(if !enabled { COLOR_DISABLED } else if active { COLOR_ACCENT } else { COLOR_CARD_HIGHLIGHT });
+        canvas.draw_round_rect(Rect::from_xywh(x, y, w, h), h / 2.0, h / 2.0, &paint);
+        let font = self.get_font(11.0, true);
+        paint.set_color(if enabled { COLOR_TEXT_PRI } else { COLOR_TEXT_SEC });
+        let (_, rect) = font.measure_str(label, None);
+        canvas.draw_str(label, (x + (w - rect.width()) / 2.0, y + 15.0), &font, &paint);
+    }
     fn get_hover_state(&self) -> bool {
         let (mx, my) = self.logical_mouse_pos;
         let win = self.window.as_ref().unwrap();
@@ -209,8 +227,12 @@ impl MusicApp {
 
         if lmx >= 320.0 && lmx <= 380.0 && lmy >= 80.0 && lmy <= 110.0 { return true; }
         if lmx >= 320.0 && lmx <= 380.0 && lmy >= 130.0 && lmy <= 160.0 { return true; }
+        if self.config.show_lyrics {
+            if lmx >= 235.0 && lmx <= 285.0 && lmy >= 185.0 && lmy <= 207.0 { return true; }
+            if lmx >= 292.0 && lmx <= 360.0 && lmy >= 185.0 && lmy <= 207.0 { return true; }
+        }
         
-        let media_apps_y = 195.0;
+        let media_apps_y = 250.0;
 
         if self.config.smtc_enabled {
             if lmx >= MUSIC_W - 130.0 && lmx <= MUSIC_W - 20.0 && lmy >= media_apps_y && lmy <= media_apps_y + 24.0 { return true; }
@@ -244,8 +266,18 @@ impl MusicApp {
             self.config.show_lyrics = !self.config.show_lyrics;
             changed = true;
         }
+        if self.config.show_lyrics {
+            if lmx >= 235.0 && lmx <= 285.0 && lmy >= 185.0 && lmy <= 207.0 {
+                self.config.lyrics_source = "163".to_string();
+                changed = true;
+            }
+            if lmx >= 292.0 && lmx <= 360.0 && lmy >= 185.0 && lmy <= 207.0 {
+                self.config.lyrics_source = "lrclib".to_string();
+                changed = true;
+            }
+        }
         
-        let media_apps_y = 195.0;
+        let media_apps_y = 250.0;
 
         if self.config.smtc_enabled {
             if lmx >= MUSIC_W - 130.0 && lmx <= MUSIC_W - 20.0 && lmy >= media_apps_y && lmy <= media_apps_y + 24.0 {

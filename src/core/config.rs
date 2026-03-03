@@ -32,6 +32,8 @@ pub struct AppConfig {
     pub update_check_interval: f32,
     #[serde(default = "default_language")]
     pub language: String,
+    #[serde(default = "default_lyrics_source")]
+    pub lyrics_source: String,
 }
 
 fn default_show_lyrics() -> bool {
@@ -66,6 +68,10 @@ fn default_language() -> String {
     "auto".to_string()
 }
 
+fn default_lyrics_source() -> String {
+    "163".to_string()
+}
+
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
@@ -86,6 +92,7 @@ impl Default for AppConfig {
             check_for_updates: true,
             update_check_interval: 4.0,
             language: "auto".to_string(),
+            lyrics_source: "163".to_string(),
         }
     }
 }

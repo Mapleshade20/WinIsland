@@ -272,7 +272,7 @@ impl SettingsApp {
         paint.set_color(COLOR_DANGER);
         let reset_str = tr("reset_defaults");
         let (_, rect) = font.measure_str(&reset_str, None);
-        let reset_y = if self.config.auto_hide { delay_y + 60.0 } else { lang_y + 60.0 };
+        let reset_y = delay_y + 60.0;
         canvas.draw_str(&reset_str, ((SETTINGS_W - rect.width()) / 2.0, reset_y), &font, &paint);
     }
     fn draw_text_button_danger(&self, canvas: &skia_safe::Canvas, x: f32, y: f32, w: f32, h: f32, label: &str) {
@@ -515,7 +515,7 @@ impl SettingsApp {
                 if Self::in_rect(lmx, content_my, 270.0, delay_y + 2.0, 28.0, 28.0) { return true; }
                 if Self::in_rect(lmx, content_my, 345.0, delay_y + 2.0, 28.0, 28.0) { return true; }
             }
-            let reset_y = if self.config.auto_hide { delay_y + 60.0 } else { lang_y + 60.0 };
+            let reset_y = delay_y + 60.0;
             if lmx >= cx - 100.0 && lmx <= cx + 100.0 && content_my >= reset_y - 24.0 && content_my <= reset_y + 12.0 { return true; }
         } else if lmy >= 260.0 && lmy <= 300.0 && lmx >= cx - 100.0 && lmx <= cx + 100.0 {
             return true;
